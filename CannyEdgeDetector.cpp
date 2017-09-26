@@ -1,19 +1,29 @@
 #include "CannyEdgeDetector.h"
 
-float CannyEdgeDetector::getConvolutionAtPoint(int x, int y, char * image)
-{
-	return 0.0f;
-}
 
-CannyEdgeDetector::CannyEdgeDetector(int k, float currentSigma):_k(k),_sigma(currentSigma)
+CannyEdgeDetector::CannyEdgeDetector(int k, float currentSigma, int nChannels = 3):_k(k),_sigma(currentSigma),_nChannels(nChannels)
 {
 	_kernel = createKernel(k / 2, currentSigma);
+}
+
+void CannyEdgeDetector::setKernel(int k, float sigma)
+{
+	if (_kernel != (float**)0) {
+		delete _kernel;
+	}
+	_kernel = createKernel(k, sigma);
+	_sigma = sigma;
+	_k = k;
 }
 
 float CannyEdgeDetector::getKernelElement(int i, int j, int k, float sigma)
 {
 	float exponent = -((i - k)*(i - k) + (j - k)*(j - k)) / (2 * sigma*sigma);
 	return (float)(std::exp(exponent) / (2 * _PI_*sigma*sigma));
+}
+
+void CannyEdgeDetector::setNChannels(int n) {
+	_nChannels = n;
 }
 
 float ** CannyEdgeDetector::createKernel(int k, float sigma)
@@ -40,40 +50,44 @@ float ** CannyEdgeDetector::createKernel(int k, float sigma)
 	return kernel;
 }
 
-void CannyEdgeDetector::setKernel(int k, float sigma)
-{
-	if (_kernel != (float**)0) {
-		delete _kernel;
-	}
-	_kernel = createKernel(k, sigma);
-	_sigma = sigma;
-	_k = k;
-}
-
-void CannyEdgeDetector::gaussianFilter(<T> * image, char * convolutedImage, int height, int width)
+template <class T>
+void CannyEdgeDetector::gaussianFilter(T * image, T * convolutedImage, int width, int height)
 {
 	int index;
 	for (int x = 0; x < width; x++) {
 		for (int y = 0; y < height; y++) {
 			index = x + width*y;
-			convolutedImage[index] = getConvolutionAtPoint(image, x, y);
+			convolutedImage[index] = getConvolutionAtPoint(image, x, y,width,height);
 		}
 	}
 }
+
 template <class T>
-T* CannyEdgeDetector::getConvolutionAtPoint(T* image, int x, int y, int width, int height) {
-	int index = x + width*y;
+T CannyEdgeDetector::getConvolutionAtPoint(T* image, int x, int y, int width, int height) {
+	int ii, jj,index;
+	float convolutedValue = 0;
+	float normalisationValue = 0;
 	for (int i = -_k; i < _k + 1; i++) {
-		for (int j = -_k; j < _k + 1; j++) {
-
+		ii = x + i;
+		if (ii > 0 && ii < width) {
+			for (int j = -_k; j < _k + 1; j++) {
+				jj = y + j;
+				if (jj > 0 && jj < height) {
+					index = jj*width + ii;
+					convolutedValue += (float) (image[index]*_kernel[i][j]);
+					normalisationValue += _kernel[i][j];
+				}
+			}
 		}
 	}
+	convolutedValue /= normalisationValue;
+	return (T) convolutedValue;
 }
 
 template <class T>
-T* CannyEdgeDetector::gaussianFilter(char * image, int width, int height)
+T* CannyEdgeDetector::gaussianFilter(T * image, int width, int height)
 {
-	char* convolutedImage = new char[width*height];
+	T* convolutedImage = new T[width*height];
 	gaussianFilter(image,convolutedImage,width,height);
 	return convolutedImage;
 }
